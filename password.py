@@ -1,177 +1,128 @@
-import random
-import string
+#!/usr/bin/env python3
 import os
-import datetime
-import json
+import sys
+from generators import generate_random_password, generate_word_password, generate_memorable_password, generate_pin_password
+from storage import save_password, list_saved_passwords, view_password
+from utils import check_password_strength, load_custom_dictionary, save_custom_dictionary
+from crypto import encrypt_data, decrypt_data, create_key_from_password
+from io_handlers import import_passwords, export_passwords
 
-def generate_random_password(length):
-    
-    characters = string.ascii_lowercase + string.ascii_uppercase + string.digits + "!@#$%^&*()-_=+[]{}|;:,.<>?"
-    password = ''.join(random.choice(characters) for _ in range(length))
-    return password
+def print_header():
+    print("\n" + "="*50)
+    print("           SECURE PASSWORD MANAGER")
+    print("="*50)
 
-def generate_word_password(length, separator='.'):
-    words = ['apple', 'banana', 'cherry', 'diamond', 'elephant', 'forest', 'garden',
-             'house', 'island', 'jungle', 'kiwi', 'lemon', 'mountain', 'notebook',
-             'orange', 'penguin', 'quiet', 'river', 'summer', 'tiger', 'umbrella',
-             'violet', 'winter', 'xylophone', 'yellow', 'zebra', 'dog', 'cat',
-             'tree', 'book', 'phone', 'computer', 'music', 'dance', 'light']
-    
-    password = []
-    current_length = 0
-    
-    while current_length < length:
-        word = random.choice(words)
-
-        if current_length + len(word) + len(separator) > length:
-            break
-        password.append(word)
-        current_length += len(word) + len(separator)
-    
-    
-    result = separator.join(password)
-    return result
-
-def generate_memorable_password(length):
-    words = ['apple', 'banana', 'cherry', 'diamond', 'elephant', 'forest', 'garden',
-             'house', 'island', 'jungle', 'kiwi', 'lemon', 'mountain', 'notebook']
-    
-    word = random.choice(words)
-    remaining_length = length - len(word)
-    
-    if remaining_length <= 0:
-        return word[:length]
-    
-
-    digits_length = min(remaining_length, 4)
-    digits = ''.join(random.choice(string.digits) for _ in range(digits_length))
-    remaining_length -= digits_length
-    
-
-    special_chars = "!@#$%^&*"
-    special_length = min(remaining_length, 2)
-    special = ''.join(random.choice(special_chars) for _ in range(special_length))
-    remaining_length -= special_length
-    
- 
-    uppercase_length = min(remaining_length, 2)
-    uppercase = ''.join(random.choice(string.ascii_uppercase) for _ in range(uppercase_length))
-    
-    
-    password = word + digits + special + uppercase
-    return password
-
-def generate_pin_password(length):
-    password = ''.join(random.choice(string.digits) for _ in range(length))
-    return password
-
-def save_password(password, purpose=""):
-    if not os.path.exists("passwords"):
-        os.makedirs("passwords")
-    
- 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    random_string = ''.join(random.choice(string.ascii_lowercase) for _ in range(5))
-    filename = f"passwords/pwd_{timestamp}_{random_string}.json"
-    
-  
-    password_data = {
-        "password": password,
-        "purpose": purpose,
-        "created": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-    
-   
-    with open(filename, 'w') as file:
-        json.dump(password_data, file, indent=4)
-    
-    return filename
-
-def list_saved_passwords():
-    if not os.path.exists("passwords"):
-        print("No saved passwords found.")
-        return
-    
-    files = os.listdir("passwords")
-    if not files:
-        print("No saved passwords found.")
-        return
-    
-    print("\nSaved Passwords:")
-    for i, filename in enumerate(files, 1):
-        if filename.endswith('.json'):
-            try:
-                with open(f"passwords/{filename}", 'r') as file:
-                    data = json.load(file)
-                    purpose = data.get("purpose", "No purpose specified")
-                    created = data.get("created", "Unknown date")
-                    print(f"{i}. {filename} - Purpose: {purpose} - Created: {created}")
-            except:
-                print(f"{i}. {filename} - [Error reading file]")
-
-def view_password(filename):
+def generate_password_menu():
     try:
-        with open(filename, 'r') as file:
-            data = json.load(file)
-            print("\nPassword Details:")
-            print(f"Password: {data['password']}")
-            print(f"Purpose: {data.get('purpose', 'No purpose specified')}")
-            print(f"Created: {data.get('created', 'Unknown date')}")
-    except:
-        print("Error reading the password file.")
+        length = int(input("\nEnter desired password length: "))
+        if length <= 0:
+            print("Length must be a positive number.")
+            return None, None
+    except ValueError:
+        print("Please enter a valid number.")
+        return None, None
+    
+    print("\nPassword Types:")
+    print("1. Random (mix of letters, numbers, special characters)")
+    print("2. Words (words separated by a character)")
+    print("3. Memorable (word + numbers + special characters)")
+    print("4. PIN (digits only)")
+    
+    type_choice = input("\nChoose password type (1-4): ")
+    
+    custom_words = load_custom_dictionary()
+    
+    if type_choice == '1':
+        password = generate_random_password(length)
+    elif type_choice == '2':
+        separator = input("Enter separator character (default '.'): ") or '.'
+        password = generate_word_password(length, separator, custom_words)
+    elif type_choice == '3':
+        password = generate_memorable_password(length, custom_words)
+    elif type_choice == '4':
+        password = generate_pin_password(length)
+    else:
+        print("Invalid choice. Using random type.")
+        password = generate_random_password(length)
+    
+    strength, details = check_password_strength(password)
+    
+    print(f"\nGenerated Password: {password}")
+    print(f"Password Strength: {strength}")
+    print(f"Details: {details}")
+    
+    return password, strength
+
+def manage_dictionary_menu():
+    print("\nCustom Dictionary Management:")
+    print("1. View current dictionary")
+    print("2. Add new words")
+    print("3. Reset to default dictionary")
+    print("4. Back to main menu")
+    
+    choice = input("\nEnter your choice (1-4): ")
+    
+    custom_words = load_custom_dictionary()
+    
+    if choice == '1':
+        if not custom_words:
+            print("No custom dictionary found. Using default.")
+        else:
+            print("\nCurrent Dictionary:")
+            for word in custom_words:
+                print(f"- {word}")
+    elif choice == '2':
+        print("\nEnter words to add (one per line, blank line to finish):")
+        while True:
+            word = input().strip()
+            if not word:
+                break
+            custom_words.append(word)
+        save_custom_dictionary(custom_words)
+        print(f"Dictionary updated with {len(custom_words)} words.")
+    elif choice == '3':
+        save_custom_dictionary([])
+        print("Dictionary reset to default.")
+    elif choice == '4':
+        return
+    else:
+        print("Invalid choice.")
 
 def main():
-    print("==== Password Generator ====")
+    if not os.path.exists("passwords"):
+        os.makedirs("passwords")
+    if not os.path.exists("data"):
+        os.makedirs("data")
+        
+    print_header()
     
     while True:
         print("\nOptions:")
         print("1. Generate a new password")
         print("2. List saved passwords")
         print("3. View a saved password")
-        print("4. Exit")
+        print("4. Check password strength")
+        print("5. Import passwords from CSV")
+        print("6. Export passwords to CSV")
+        print("7. Manage custom word dictionary")
+        print("8. Exit")
         
-        choice = input("\nEnter your choice (1-4): ")
+        choice = input("\nEnter your choice (1-8): ")
         
         if choice == '1':
-            try:
-                length = int(input("\nEnter desired password length: "))
-                if length <= 0:
-                    print("Length must be a positive number.")
-                    continue
-            except ValueError:
-                print("Please enter a valid number.")
-                continue
-            
-     
-            print("\nPassword Types:")
-            print("1. Random (mix of letters, numbers, special characters)")
-            print("2. Words (words separated by a character)")
-            print("3. Memorable (word + numbers + special characters)")
-            print("4. PIN (digits only)")
-            
-            type_choice = input("\nChoose password type (1-4): ")
-            
-      
-            if type_choice == '1':
-                password = generate_random_password(length)
-            elif type_choice == '2':
-                separator = input("Enter separator character (default '.'): ") or '.'
-                password = generate_word_password(length, separator)
-            elif type_choice == '3':
-                password = generate_memorable_password(length)
-            elif type_choice == '4':
-                password = generate_pin_password(length)
-            else:
-                print("Invalid choice. Using random type.")
-                password = generate_random_password(length)
-             
-            print(f"\nGenerated Password: {password}")
-            
-            save_choice = input("\nDo you want to save this password? (y/n): ").lower()
-            if save_choice == 'y':
-                purpose = input("Enter a purpose/description for this password: ")
-                filename = save_password(password, purpose)
-                print(f"Password saved to file: {filename}")
+            password, strength = generate_password_menu()
+            if password:
+                save_choice = input("\nDo you want to save this password? (y/n): ").lower()
+                if save_choice == 'y':
+                    encrypt = input("Encrypt this password? (y/n): ").lower() == 'y'
+                    if encrypt:
+                        master_password = input("Enter master password for encryption: ")
+                        key = create_key_from_password(master_password)
+                        password = encrypt_data(password, key)
+                    
+                    purpose = input("Enter a purpose/description for this password: ")
+                    filename = save_password(password, purpose, strength, encrypt)
+                    print(f"Password saved to file: {filename}")
         
         elif choice == '2':
             list_saved_passwords()
@@ -180,13 +131,50 @@ def main():
             list_saved_passwords()
             password_dir = "passwords"
             if os.path.exists(password_dir) and os.listdir(password_dir):
-                file_name = input("\nEnter the filename to view (e.g., pwd_20240414_123456_abcde.json): ")
-                view_password(f"{password_dir}/{file_name}")
+                file_name = input("\nEnter the filename to view: ")
+                full_path = f"{password_dir}/{file_name}"
+                
+                if os.path.exists(full_path):
+                    encrypted = input("Is this password encrypted? (y/n): ").lower() == 'y'
+                    if encrypted:
+                        master_password = input("Enter master password for decryption: ")
+                        key = create_key_from_password(master_password)
+                        view_password(full_path, key)
+                    else:
+                        view_password(full_path)
+                else:
+                    print("File not found.")
             else:
                 print("No password files available to view.")
         
         elif choice == '4':
-            print("Thank you for using the Password Generator.")
+            password = input("\nEnter password to check: ")
+            strength, details = check_password_strength(password)
+            print(f"Password Strength: {strength}")
+            print(f"Details: {details}")
+        
+        elif choice == '5':
+            filepath = input("\nEnter path to CSV file: ")
+            if os.path.exists(filepath):
+                master_password = input("Enter master password for encrypted passwords (leave blank if none): ")
+                key = create_key_from_password(master_password) if master_password else None
+                count = import_passwords(filepath, key)
+                print(f"Successfully imported {count} passwords.")
+            else:
+                print("File not found.")
+        
+        elif choice == '6':
+            filepath = input("\nEnter destination path for CSV export: ")
+            master_password = input("Enter master password for encrypted passwords (leave blank if none): ")
+            key = create_key_from_password(master_password) if master_password else None
+            count = export_passwords(filepath, key)
+            print(f"Successfully exported {count} passwords.")
+        
+        elif choice == '7':
+            manage_dictionary_menu()
+        
+        elif choice == '8':
+            print("Thank you for using the Password Manager. Goodbye!")
             break
         
         else:
