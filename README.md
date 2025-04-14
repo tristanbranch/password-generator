@@ -58,7 +58,7 @@ python password.py
 
 ## Project Structure
 
-- `password_manager.py` - Main application script
+- `password.py` - Main application script
 - `generators.py` - Password generation functions
 - `storage.py` - Password storage and retrieval
 - `utils.py` - Utility functions including password strength checker
