@@ -34,7 +34,7 @@ A flexible Python-based password generator that creates secure passwords with va
 Run the program:
 
 ```
-python password_generator.py
+python password.py
 ```
 
 ### Menu Options
