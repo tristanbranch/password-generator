@@ -95,7 +95,6 @@ Password saved to file: passwords/pwd_20240414_152233_abcde.json
 - Password strength meter
 - Password encryption
 - Import/export functionality
-- GUI interface
 - Custom word dictionary support
 
 ## Contributing
